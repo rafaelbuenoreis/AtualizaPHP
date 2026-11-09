@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Callable, Tuple
 
 from compatibility import OFFLINE_PHP_CATALOG, STANDARD_PHP_EXTENSIONS
+from oracle_oci8_manager import OracleOci8Manager
 
 
 class PhpUpdater:
@@ -588,6 +589,16 @@ exit
             p_m = subprocess.run([str(php_exe), "-m"], capture_output=True, text=True, timeout=8)
             if p_m.stdout:
                 result["loaded_modules"] = [l.strip() for l in p_m.stdout.splitlines() if l.strip() and not l.startswith("[")]
+
+            # Verificar integridade específica do Oracle OCI8
+            try:
+                p_oci = subprocess.run([str(php_exe), "--ri", "oci8"], capture_output=True, text=True, timeout=5)
+                if "OCI8 Support => enabled" in p_oci.stdout:
+                    result["oci8_status"] = "enabled"
+                elif "Extension 'oci8' not present" in (p_oci.stdout + p_oci.stderr):
+                    result["oci8_status"] = "not_present"
+            except Exception:
+                pass
         except Exception as e:
             result["errors"].append(f"Falha ao executar teste do PHP: {str(e)}")
 
@@ -636,6 +647,9 @@ exit
                 if old_ext_dir.exists():
                     for old_dll in old_ext_dir.glob("*.dll"):
                         if old_dll.name.lower() not in STANDARD_PHP_EXTENSIONS:
+                            if "oci8" in old_dll.name.lower():
+                                self.log(f"[AVISO OCI8] A DLL {old_dll.name} pertence à versão antiga do PHP e NÃO deve ser copiada diretamente para a nova versão (incompatibilidade de ABI Zend).")
+                                continue
                             dest_dll = new_ext_dir / old_dll.name
                             if not dest_dll.exists():
                                 shutil.copy2(old_dll, dest_dll)
@@ -643,6 +657,25 @@ exit
 
             # 4. Gerar php.ini migrado em staging
             self.generate_migrated_php_ini(staging_dir, old_php_ini)
+
+            # Verificar se a versão anterior usava Oracle OCI8 e preparar a extensão correta
+            had_oci8 = False
+            if old_php_ini and old_php_ini.exists():
+                try:
+                    with open(old_php_ini, "r", encoding="utf-8", errors="ignore") as f_ini:
+                        for l in f_ini:
+                            if not l.strip().startswith(";") and re.match(r"^extension\s*=\s*(php_)?oci8", l.strip(), re.IGNORECASE):
+                                had_oci8 = True
+                                break
+                except Exception:
+                    pass
+
+            if had_oci8:
+                self.log("[PROTEÇÃO ORACLE OCI8] Instalação anterior utilizava o driver Oracle. Verificando e configurando DLL compatível...")
+                oci_mgr = OracleOci8Manager(self.target_path, log_callback=self.log)
+                oci_ok, oci_msg, oci_diag = oci_mgr.auto_fix_oci8(staging_dir)
+                if not oci_ok:
+                    self.log(f"[AVISO OCI8] {oci_msg}")
 
             # 5. PRÉ-TESTE RIGOROSO NA ÁREA ISOLADA (SEM TOCAR NA PRODUÇÃO)
             self.log("[VERIFICAÇÃO PRÉVIA] Testando integridade do binário na área isolada...")

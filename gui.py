@@ -15,6 +15,7 @@ import customtkinter as ctk
 from analyzer import XamppAnalyzer
 from updater import PhpUpdater
 from log_cleaner import ApacheLogCleaner
+from oracle_oci8_manager import OracleOci8Manager
 from compatibility import PHP_LIFECYCLE, OFFLINE_PHP_CATALOG, KNOWN_THIRD_PARTY_EXTENSIONS
 
 # Configuração global de aparência
@@ -127,12 +128,14 @@ class XamppPhpUpgradeApp(ctk.CTk):
         self.tab_plan = self.tabview.add("📋 Plano de Atualização & Cuidados")
         self.tab_upgrade = self.tabview.add("🚀 Atualizador Seguro & Rollback Garantido")
         self.tab_logs = self.tabview.add("🧹 Limpeza de Logs do Apache")
+        self.tab_oracle = self.tabview.add("🩺 Diagnóstico & Reparo Oracle (OCI8)")
 
         self._build_tab_overview()
         self._build_tab_audit()
         self._build_tab_plan()
         self._build_tab_upgrade()
         self._build_tab_logs()
+        self._build_tab_oracle()
 
     # -------------------------------------------------------------
     # ABA 1: VISÃO GERAL
@@ -500,6 +503,133 @@ class XamppPhpUpgradeApp(ctk.CTk):
 
         self.txt_logs_console = ctk.CTkTextbox(tab, font=ctk.CTkFont(family="Consolas", size=11), height=170)
         self.txt_logs_console.pack(fill="both", expand=True, padx=10, pady=(2, 10))
+
+    # -------------------------------------------------------------
+    # ABA 6: DIAGNÓSTICO & REPARO ORACLE (OCI8)
+    # -------------------------------------------------------------
+    def _build_tab_oracle(self):
+        tab = self.tab_oracle
+
+        self.card_oci8_status = ctk.CTkFrame(tab, corner_radius=10, fg_color="#212529")
+        self.card_oci8_status.pack(fill="x", padx=10, pady=10)
+
+        self.lbl_oci8_icon = ctk.CTkLabel(self.card_oci8_status, text="ℹ️", font=ctk.CTkFont(size=32))
+        self.lbl_oci8_icon.pack(side="left", padx=15, pady=15)
+
+        oci8_text_box = ctk.CTkFrame(self.card_oci8_status, fg_color="transparent")
+        oci8_text_box.pack(side="left", fill="both", expand=True, pady=10)
+
+        self.lbl_oci8_title = ctk.CTkLabel(
+            oci8_text_box,
+            text="Status do Driver Oracle OCI8: Verificando...",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            anchor="w"
+        )
+        self.lbl_oci8_title.pack(fill="x")
+
+        self.lbl_oci8_desc = ctk.CTkLabel(
+            oci8_text_box,
+            text="Aguardando análise da instalação para diagnosticar a extensão OCI8.",
+            font=ctk.CTkFont(size=12),
+            text_color="#ced4da",
+            anchor="w"
+        )
+        self.lbl_oci8_desc.pack(fill="x", pady=(2, 0))
+
+        grid_oracle = ctk.CTkFrame(tab, fg_color="transparent")
+        grid_oracle.pack(fill="x", padx=10, pady=5)
+        grid_oracle.grid_columnconfigure((0, 1, 2, 3), weight=1, uniform="oracle_grp")
+
+        # 1. DLL em ext/
+        card_d1 = ctk.CTkFrame(grid_oracle, corner_radius=10)
+        card_d1.grid(row=0, column=0, padx=4, pady=4, sticky="nsew")
+        ctk.CTkLabel(card_d1, text="1. DLL em ext/", font=ctk.CTkFont(size=13, weight="bold"), text_color="#74c0fc").pack(anchor="w", padx=12, pady=(10, 4))
+        self.lbl_d1_status = ctk.CTkLabel(card_d1, text="Status: --", font=ctk.CTkFont(size=12))
+        self.lbl_d1_status.pack(anchor="w", padx=12, pady=2)
+        self.lbl_d1_file = ctk.CTkLabel(card_d1, text="Arquivo: --", font=ctk.CTkFont(size=11), text_color="#868e96")
+        self.lbl_d1_file.pack(anchor="w", padx=12, pady=(2, 10))
+
+        # 2. php.ini
+        card_d2 = ctk.CTkFrame(grid_oracle, corner_radius=10)
+        card_d2.grid(row=0, column=1, padx=4, pady=4, sticky="nsew")
+        ctk.CTkLabel(card_d2, text="2. Config php.ini", font=ctk.CTkFont(size=13, weight="bold"), text_color="#ffd43b").pack(anchor="w", padx=12, pady=(10, 4))
+        self.lbl_d2_status = ctk.CTkLabel(card_d2, text="Status: --", font=ctk.CTkFont(size=12))
+        self.lbl_d2_status.pack(anchor="w", padx=12, pady=2)
+        self.lbl_d2_line = ctk.CTkLabel(card_d2, text="Diretiva: --", font=ctk.CTkFont(size=11), text_color="#868e96")
+        self.lbl_d2_line.pack(anchor="w", padx=12, pady=(2, 10))
+
+        # 3. Instant Client
+        card_d3 = ctk.CTkFrame(grid_oracle, corner_radius=10)
+        card_d3.grid(row=0, column=2, padx=4, pady=4, sticky="nsew")
+        ctk.CTkLabel(card_d3, text="3. Instant Client", font=ctk.CTkFont(size=13, weight="bold"), text_color="#51cf66").pack(anchor="w", padx=12, pady=(10, 4))
+        self.lbl_d3_status = ctk.CTkLabel(card_d3, text="Status: --", font=ctk.CTkFont(size=12))
+        self.lbl_d3_status.pack(anchor="w", padx=12, pady=2)
+        self.lbl_d3_path = ctk.CTkLabel(card_d3, text="Pasta: --", font=ctk.CTkFont(size=11), text_color="#868e96")
+        self.lbl_d3_path.pack(anchor="w", padx=12, pady=(2, 10))
+
+        # 4. PATH do Windows
+        card_d4 = ctk.CTkFrame(grid_oracle, corner_radius=10)
+        card_d4.grid(row=0, column=3, padx=4, pady=4, sticky="nsew")
+        ctk.CTkLabel(card_d4, text="4. PATH do Sistema", font=ctk.CTkFont(size=13, weight="bold"), text_color="#ff922b").pack(anchor="w", padx=12, pady=(10, 4))
+        self.lbl_d4_status = ctk.CTkLabel(card_d4, text="Status: --", font=ctk.CTkFont(size=12))
+        self.lbl_d4_status.pack(anchor="w", padx=12, pady=2)
+        self.lbl_d4_detail = ctk.CTkLabel(card_d4, text="oci.dll no PATH: --", font=ctk.CTkFont(size=11), text_color="#868e96")
+        self.lbl_d4_detail.pack(anchor="w", padx=12, pady=(2, 10))
+
+        # Painel de Reparo e Ações
+        fix_frame = ctk.CTkFrame(tab, corner_radius=10)
+        fix_frame.pack(fill="x", padx=10, pady=8)
+
+        row_pkg = ctk.CTkFrame(fix_frame, fg_color="transparent")
+        row_pkg.pack(fill="x", padx=15, pady=(10, 6))
+
+        ctk.CTkLabel(row_pkg, text="Pacote PECL OCI8 (opcional):", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=(0, 10))
+        self.entry_oci8_pkg = ctk.CTkEntry(row_pkg, placeholder_text="Deixe vazio para obter automaticamente ou selecione php_oci8-*.zip / php_oci8*.dll...", width=480)
+        self.entry_oci8_pkg.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        btn_browse_oci_pkg = ctk.CTkButton(row_pkg, text="Procurar...", width=100, command=self._on_browse_oci8_package)
+        btn_browse_oci_pkg.pack(side="left")
+
+        row_btns = ctk.CTkFrame(fix_frame, fg_color="transparent")
+        row_btns.pack(fill="x", padx=15, pady=(6, 12))
+
+        self.btn_fix_oci8 = ctk.CTkButton(
+            row_btns,
+            text="🛠️ CORRIGIR E ATIVAR DRIVER ORACLE (OCI8)",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            fg_color="#0ca678",
+            hover_color="#099268",
+            height=38,
+            command=self._start_oci8_fix
+        )
+        self.btn_fix_oci8.pack(side="left", padx=(0, 12))
+
+        btn_retest_oci8 = ctk.CTkButton(
+            row_btns,
+            text="🔄 Re-testar Driver (php --ri oci8)",
+            width=210,
+            height=38,
+            fg_color="#1971c2",
+            hover_color="#1864ab",
+            command=self._refresh_oci8_status
+        )
+        btn_retest_oci8.pack(side="left", padx=(0, 12))
+
+        btn_gen_bat = ctk.CTkButton(
+            row_btns,
+            text="⚡ Gerar Script INICIAR_APACHE_ORACLE.bat",
+            width=260,
+            height=38,
+            fg_color="#343a40",
+            hover_color="#495057",
+            command=self._on_generate_oracle_apache_bat
+        )
+        btn_gen_bat.pack(side="left")
+
+        lbl_diag_title = ctk.CTkLabel(tab, text="Console de Diagnóstico Detalhado do Oracle OCI8:", font=ctk.CTkFont(weight="bold"))
+        lbl_diag_title.pack(anchor="w", padx=15, pady=(4, 2))
+
+        self.txt_oracle_console = ctk.CTkTextbox(tab, font=ctk.CTkFont(family="Consolas", size=11), height=200)
+        self.txt_oracle_console.pack(fill="both", expand=True, padx=10, pady=(2, 10))
 
     def _build_footer(self):
         footer = ctk.CTkFrame(self, height=30, fg_color="#1a1a1a")

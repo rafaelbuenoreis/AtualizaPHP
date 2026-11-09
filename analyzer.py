@@ -21,6 +21,7 @@ from compatibility import (
     KNOWN_THIRD_PARTY_EXTENSIONS,
     OFFLINE_PHP_CATALOG
 )
+from oracle_oci8_manager import OracleOci8Manager
 
 
 class XamppAnalyzer:
@@ -655,6 +656,7 @@ class XamppAnalyzer:
         # Checar Visual C++ Redistributable e Clients de Banco
         report["vc_redist"] = self.check_vc_redistributable()
         report["db_clients"] = self.detect_database_clients()
+        report["oci8"] = OracleOci8Manager(self.target_path).diagnose_oci8(php_dir)
 
         # Avaliação de Necessidade de Atualização
         current_ver = php_info.get("version", "0.0.0")
