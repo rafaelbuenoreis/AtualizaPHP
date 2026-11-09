@@ -15,7 +15,8 @@ PHP_LIFECYCLE: Dict[str, Dict[str, Any]] = {
     "8.1": {"status": "EOL", "eol_date": "2025-12-31", "risk": "ALTO - Versão descontinuada recentemente"},
     "8.2": {"status": "Security Only", "eol_date": "2026-12-31", "risk": "MÉDIO - Apenas correções críticas de segurança"},
     "8.3": {"status": "Active / Security", "eol_date": "2027-12-31", "risk": "BAIXO - Versão madura e amplamente suportada"},
-    "8.4": {"status": "Active (Última Estável)", "eol_date": "2028-12-31", "risk": "MÍNIMO - Versão estável mais recente com novos recursos"}
+    "8.4": {"status": "Active (Última Estável)", "eol_date": "2028-12-31", "risk": "MÍNIMO - Versão estável mais recente com novos recursos"},
+    "8.5": {"status": "Active (Recente)", "eol_date": "2029-12-31", "risk": "MÍNIMO - Versão mais recente"}
 }
 
 # Principais mudanças e quebras de compatibilidade conhecidas por versão
@@ -110,22 +111,24 @@ KNOWN_THIRD_PARTY_EXTENSIONS = {
 # Catálogo offline de versões estáveis para uso caso não haja conexão com a internet
 OFFLINE_PHP_CATALOG = [
     {
-        "version": "8.4.1",
+        "version": "8.4.27-1",
         "major_minor": "8.4",
-        "channel": "Stable",
+        "channel": "Estável (Recomendado)",
         "release_date": "2024-11-21",
         "is_latest_stable": True,
         "files": {
             "ts_x64": {
-                "filename": "php-8.4.1-Win32-vs17-x64.zip",
-                "url": "https://windows.php.net/downloads/releases/php-8.4.1-Win32-vs17-x64.zip",
+                "filename": "php-8.4.27-1-Win32-vs17-x64.zip",
+                "url": "https://windows.php.net/downloads/releases/php-8.4.27-1-Win32-vs17-x64.zip",
+                "fallback_url": "https://windows.php.net/downloads/releases/archives/php-8.4.27-1-Win32-vs17-x64.zip",
                 "compiler": "vs17",
                 "thread_safe": True,
                 "arch": "x64"
             },
             "nts_x64": {
-                "filename": "php-8.4.1-nts-Win32-vs17-x64.zip",
-                "url": "https://windows.php.net/downloads/releases/php-8.4.1-nts-Win32-vs17-x64.zip",
+                "filename": "php-8.4.27-1-nts-Win32-vs17-x64.zip",
+                "url": "https://windows.php.net/downloads/releases/php-8.4.27-1-nts-Win32-vs17-x64.zip",
+                "fallback_url": "https://windows.php.net/downloads/releases/archives/php-8.4.27-1-nts-Win32-vs17-x64.zip",
                 "compiler": "vs17",
                 "thread_safe": False,
                 "arch": "x64"
@@ -133,22 +136,49 @@ OFFLINE_PHP_CATALOG = [
         }
     },
     {
-        "version": "8.3.14",
+        "version": "8.5.12-1",
+        "major_minor": "8.5",
+        "channel": "Versão Recente",
+        "release_date": "2024-11-21",
+        "is_latest_stable": False,
+        "files": {
+            "ts_x64": {
+                "filename": "php-8.5.12-1-Win32-vs17-x64.zip",
+                "url": "https://windows.php.net/downloads/releases/php-8.5.12-1-Win32-vs17-x64.zip",
+                "fallback_url": "https://windows.php.net/downloads/releases/archives/php-8.5.12-1-Win32-vs17-x64.zip",
+                "compiler": "vs17",
+                "thread_safe": True,
+                "arch": "x64"
+            },
+            "nts_x64": {
+                "filename": "php-8.5.12-1-nts-Win32-vs17-x64.zip",
+                "url": "https://windows.php.net/downloads/releases/php-8.5.12-1-nts-Win32-vs17-x64.zip",
+                "fallback_url": "https://windows.php.net/downloads/releases/archives/php-8.5.12-1-nts-Win32-vs17-x64.zip",
+                "compiler": "vs17",
+                "thread_safe": False,
+                "arch": "x64"
+            }
+        }
+    },
+    {
+        "version": "8.3.36-1",
         "major_minor": "8.3",
-        "channel": "Stable",
+        "channel": "Estável Madura",
         "release_date": "2024-11-21",
         "is_latest_stable": False,
         "files": {
             "ts_x64": {
-                "filename": "php-8.3.14-Win32-vs16-x64.zip",
-                "url": "https://windows.php.net/downloads/releases/php-8.3.14-Win32-vs16-x64.zip",
+                "filename": "php-8.3.36-1-Win32-vs16-x64.zip",
+                "url": "https://windows.php.net/downloads/releases/php-8.3.36-1-Win32-vs16-x64.zip",
+                "fallback_url": "https://windows.php.net/downloads/releases/archives/php-8.3.36-1-Win32-vs16-x64.zip",
                 "compiler": "vs16",
                 "thread_safe": True,
                 "arch": "x64"
             },
             "nts_x64": {
-                "filename": "php-8.3.14-nts-Win32-vs16-x64.zip",
-                "url": "https://windows.php.net/downloads/releases/php-8.3.14-nts-Win32-vs16-x64.zip",
+                "filename": "php-8.3.36-1-nts-Win32-vs16-x64.zip",
+                "url": "https://windows.php.net/downloads/releases/php-8.3.36-1-nts-Win32-vs16-x64.zip",
+                "fallback_url": "https://windows.php.net/downloads/releases/archives/php-8.3.36-1-nts-Win32-vs16-x64.zip",
                 "compiler": "vs16",
                 "thread_safe": False,
                 "arch": "x64"
@@ -156,15 +186,16 @@ OFFLINE_PHP_CATALOG = [
         }
     },
     {
-        "version": "8.2.26",
+        "version": "8.2.35-1",
         "major_minor": "8.2",
-        "channel": "Security Support",
+        "channel": "Suporte de Segurança",
         "release_date": "2024-11-21",
         "is_latest_stable": False,
         "files": {
             "ts_x64": {
-                "filename": "php-8.2.26-Win32-vs16-x64.zip",
-                "url": "https://windows.php.net/downloads/releases/php-8.2.26-Win32-vs16-x64.zip",
+                "filename": "php-8.2.35-1-Win32-vs16-x64.zip",
+                "url": "https://windows.php.net/downloads/releases/php-8.2.35-1-Win32-vs16-x64.zip",
+                "fallback_url": "https://windows.php.net/downloads/releases/archives/php-8.2.35-1-Win32-vs16-x64.zip",
                 "compiler": "vs16",
                 "thread_safe": True,
                 "arch": "x64"

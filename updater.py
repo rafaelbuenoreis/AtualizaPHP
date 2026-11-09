@@ -50,39 +50,102 @@ class PhpUpdater:
 
     @classmethod
     def get_available_versions(cls) -> List[Dict[str, Any]]:
-        """Busca versões estáveis online ou retorna catálogo embutido seguro."""
+        """Busca versões estáveis online no releases.json ou retorna catálogo embutido seguro."""
         try:
             req = urllib.request.Request(
                 cls.WINDOWS_PHP_RELEASES_URL,
-                headers={"User-Agent": "XAMPP-PHP-Updater/2.0"}
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "application/json, text/plain, */*"
+                }
             )
-            with urllib.request.urlopen(req, timeout=4) as resp:
+            import ssl
+            ctx = ssl.create_default_context()
+            try:
+                resp_handle = urllib.request.urlopen(req, timeout=8, context=ctx)
+            except Exception:
+                unverified_ctx = ssl._create_unverified_context()
+                resp_handle = urllib.request.urlopen(req, timeout=8, context=unverified_ctx)
+
+            with resp_handle as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 versions = []
-                for mm, vinfo in data.items():
-                    if isinstance(vinfo, dict) and "version" in vinfo:
-                        ver = vinfo["version"]
-                        files_map = {}
-                        for key, file_info in vinfo.get("files", {}).items():
-                            fn = file_info.get("zip", {}).get("name", "")
-                            url = f"https://windows.php.net/downloads/releases/{fn}"
-                            if "nts" in fn.lower() and "x64" in fn.lower():
-                                files_map["nts_x64"] = {
-                                    "filename": fn, "url": url, "thread_safe": False, "arch": "x64"
-                                }
-                            elif "x64" in fn.lower() and "nts" not in fn.lower():
-                                files_map["ts_x64"] = {
-                                    "filename": fn, "url": url, "thread_safe": True, "arch": "x64"
-                                }
-                        if "ts_x64" in files_map:
-                            versions.append({
-                                "version": ver,
-                                "major_minor": mm,
-                                "channel": "Stable",
-                                "release_date": vinfo.get("date", ""),
-                                "is_latest_stable": (mm == "8.4"),
-                                "files": files_map
-                            })
+
+                preferred_order = ["8.4", "8.5", "8.3", "8.2", "8.1", "8.0"]
+                all_keys = [k for k in preferred_order if k in data] + [k for k in data.keys() if k not in preferred_order and k != "7.4"]
+
+                for mm in all_keys:
+                    vinfo = data.get(mm)
+                    if not isinstance(vinfo, dict) or "version" not in vinfo:
+                        continue
+
+                    ver = vinfo["version"]
+                    files_map = {}
+
+                    candidates_items = []
+                    if "files" in vinfo and isinstance(vinfo["files"], dict):
+                        candidates_items.extend(vinfo["files"].items())
+                    for b_key, b_val in vinfo.items():
+                        if isinstance(b_val, dict) and "zip" in b_val:
+                            candidates_items.append((b_key, b_val))
+
+                    for build_key, build_data in candidates_items:
+                        zip_info = build_data.get("zip", {})
+                        if isinstance(zip_info, dict):
+                            fn = zip_info.get("path") or zip_info.get("name", "")
+                            size_str = zip_info.get("size", "")
+                            sha256_str = zip_info.get("sha256", "")
+                        else:
+                            fn = build_data.get("name", "")
+                            size_str = ""
+                            sha256_str = ""
+
+                        if not fn:
+                            continue
+
+                        url_main = f"https://windows.php.net/downloads/releases/{fn}"
+                        url_archive = f"https://windows.php.net/downloads/releases/archives/{fn}"
+
+                        is_ts = "nts" not in build_key.lower() and "nts" not in fn.lower()
+                        is_x64 = "x64" in build_key.lower() or "x64" in fn.lower()
+
+                        entry = {
+                            "filename": fn,
+                            "url": url_main,
+                            "fallback_url": url_archive,
+                            "size": size_str,
+                            "sha256": sha256_str,
+                            "thread_safe": is_ts,
+                            "arch": "x64" if is_x64 else "x86"
+                        }
+
+                        if is_ts and is_x64:
+                            files_map["ts_x64"] = entry
+                        elif not is_ts and is_x64:
+                            files_map["nts_x64"] = entry
+
+                    if "ts_x64" in files_map:
+                        is_rec = (mm == "8.4")
+                        if is_rec:
+                            channel_desc = "Estável (Recomendado)"
+                        elif mm == "8.5":
+                            channel_desc = "Versão Recente"
+                        elif mm == "8.3":
+                            channel_desc = "Estável Madura"
+                        elif mm == "8.2":
+                            channel_desc = "Suporte de Segurança"
+                        else:
+                            channel_desc = "Descontinuada"
+
+                        versions.append({
+                            "version": ver,
+                            "major_minor": mm,
+                            "channel": channel_desc,
+                            "release_date": vinfo.get("date", ""),
+                            "is_latest_stable": is_rec,
+                            "files": files_map
+                        })
+
                 if versions:
                     return versions
         except Exception:
@@ -97,41 +160,119 @@ class PhpUpdater:
         progress_callback: Optional[Callable[[float, int, int], None]] = None,
         cancel_check: Optional[Callable[[], bool]] = None
     ) -> Path:
-        """Download do PHP com relatório de progresso e cancelamento seguro."""
+        """
+        Download resiliente com múltiplos fallbacks:
+        1. Tenta a URL principal em /downloads/releases/.
+        2. Em caso de 404, tenta automaticamente em /downloads/releases/archives/.
+        3. Valida integridade do arquivo ZIP baixado.
+        4. Suporta cancelamento e limpeza de arquivos residuais (.part).
+        """
+        import ssl
         dest_folder.mkdir(parents=True, exist_ok=True)
-        filename = download_url.split("/")[-1]
+        filename = download_url.split("/")[-1].split("?")[0]
         dest_file = dest_folder / filename
+        part_file = dest_folder / f"{filename}.part"
 
-        self.log(f"[DOWNLOAD] Conectando a {download_url}...")
-        req = urllib.request.Request(
-            download_url,
-            headers={"User-Agent": "XAMPP-PHP-Updater/2.0"}
-        )
+        candidates = [download_url]
+        if "/downloads/releases/" in download_url and "/archives/" not in download_url:
+            candidates.append(download_url.replace("/downloads/releases/", "/downloads/releases/archives/"))
+        elif "/archives/" in download_url:
+            candidates.append(download_url.replace("/downloads/releases/archives/", "/downloads/releases/"))
 
-        with urllib.request.urlopen(req, timeout=30) as response:
-            total_size = int(response.headers.get("content-length", 0))
-            downloaded = 0
-            block_size = 64 * 1024
+        unique_urls = []
+        for u in candidates:
+            if u not in unique_urls:
+                unique_urls.append(u)
 
-            with open(dest_file, "wb") as f:
-                while True:
-                    if cancel_check and cancel_check():
-                        self.log("[AVISO] Download cancelado pelo usuário.")
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "*/*"
+        }
+
+        ssl_contexts = [ssl.create_default_context()]
+        try:
+            ssl_contexts.append(ssl._create_unverified_context())
+        except Exception:
+            pass
+
+        last_error = None
+
+        for target_url in unique_urls:
+            self.log(f"[DOWNLOAD] Conectando a {target_url}...")
+            for s_ctx in ssl_contexts:
+                try:
+                    req = urllib.request.Request(target_url, headers=headers)
+                    with urllib.request.urlopen(req, timeout=45, context=s_ctx) as response:
+                        if response.status != 200:
+                            self.log(f"[AVISO] Servidor retornou HTTP {response.status} para {target_url}")
+                            continue
+
+                        total_size = int(response.headers.get("content-length", 0))
+                        downloaded = 0
+                        block_size = 64 * 1024
+
+                        if part_file.exists():
+                            try:
+                                part_file.unlink()
+                            except Exception:
+                                pass
+
+                        with open(part_file, "wb") as f:
+                            while True:
+                                if cancel_check and cancel_check():
+                                    self.log("[AVISO] Download cancelado pelo usuário.")
+                                    if part_file.exists():
+                                        part_file.unlink()
+                                    raise InterruptedError("Download cancelado pelo usuário.")
+
+                                buffer = response.read(block_size)
+                                if not buffer:
+                                    break
+                                f.write(buffer)
+                                downloaded += len(buffer)
+                                if progress_callback:
+                                    ratio = (downloaded / total_size) if total_size > 0 else 0.5
+                                    progress_callback(ratio, downloaded, total_size)
+
                         if dest_file.exists():
-                            dest_file.unlink()
-                        raise InterruptedError("Download cancelado pelo usuário.")
+                            try:
+                                dest_file.unlink()
+                            except Exception:
+                                pass
+                        shutil.move(str(part_file), str(dest_file))
 
-                    buffer = response.read(block_size)
-                    if not buffer:
-                        break
-                    f.write(buffer)
-                    downloaded += len(buffer)
-                    if progress_callback and total_size > 0:
-                        progress = downloaded / total_size
-                        progress_callback(progress, downloaded, total_size)
+                        # Validação de integridade do ZIP
+                        try:
+                            with zipfile.ZipFile(dest_file, "r") as zf:
+                                z_names = zf.namelist()
+                                if "php.exe" not in z_names:
+                                    self.log("[AVISO] Pacote ZIP baixado não contém php.exe.")
+                        except Exception as ze:
+                            self.log(f"[AVISO] Arquivo ZIP inválido ({ze}). Tentando URL de fallback...")
+                            if dest_file.exists():
+                                dest_file.unlink()
+                            continue
 
-        self.log(f"[OK] Download finalizado: {dest_file.name} ({downloaded / (1024*1024):.2f} MB)")
-        return dest_file
+                        self.log(f"[SUCESSO] Download concluído: {dest_file.name} ({downloaded / (1024*1024):.2f} MB)")
+                        return dest_file
+
+                except urllib.error.HTTPError as he:
+                    last_error = he
+                    self.log(f"[AVISO] Falha HTTP {he.code} ({he.reason}) ao baixar de {target_url}")
+                    if he.code == 404:
+                        break  # Tenta a próxima URL (archive)
+                except urllib.error.URLError as ue:
+                    last_error = ue
+                    self.log(f"[AVISO] Erro de rede ({ue.reason}) para {target_url}")
+                except InterruptedError:
+                    raise
+                except Exception as ex:
+                    last_error = ex
+                    self.log(f"[AVISO] Erro na tentativa de download: {ex}")
+
+        err_msg = f"Falha ao baixar o arquivo PHP de todas as origens testadas.\nÚltimo erro: {last_error}"
+        self.log(f"[ERRO CRÍTICO] {err_msg}")
+        raise RuntimeError(err_msg)
 
     def create_bulletproof_backup(
         self,

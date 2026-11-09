@@ -1143,10 +1143,15 @@ class XamppPhpUpgradeApp(ctk.CTk):
                     if v["version"] in selected_v_text:
                         download_url = v["files"].get("ts_x64", {}).get("url")
                         break
-                if not download_url:
+                if not download_url and self.available_versions:
                     download_url = self.available_versions[0]["files"]["ts_x64"]["url"]
 
-                downloads_dir = Path(__file__).parent / "downloads"
+                downloads_dir = target_path / "downloads"
+                try:
+                    downloads_dir.mkdir(parents=True, exist_ok=True)
+                except Exception:
+                    downloads_dir = Path.cwd() / "downloads"
+                    downloads_dir.mkdir(parents=True, exist_ok=True)
 
                 def on_progress(p, cur_b, tot_b):
                     self.after(0, lambda: self.progress_bar.set(0.1 + (p * 0.4)))

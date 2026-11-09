@@ -583,6 +583,13 @@ class XamppAnalyzer:
 
     def perform_full_analysis(self) -> Dict[str, Any]:
         """Executa a análise completa e retorna um relatório estruturado para a UI."""
+        try:
+            from updater import PhpUpdater
+            avail = PhpUpdater.get_available_versions()
+            latest_candidate = avail[0] if avail else OFFLINE_PHP_CATALOG[0]
+        except Exception:
+            latest_candidate = OFFLINE_PHP_CATALOG[0]
+
         report: Dict[str, Any] = {
             "target_path": str(self.target_path) if self.target_path else "",
             "is_valid_installation": False,
@@ -591,7 +598,7 @@ class XamppAnalyzer:
             "apache_dir": "",
             "running_processes": self.check_running_processes(),
             "current_php": {},
-            "latest_php": OFFLINE_PHP_CATALOG[0],  # Versão estável mais recente
+            "latest_php": latest_candidate,  # Versão estável mais recente
             "needs_update": False,
             "update_urgency": "INFO",  # OK, INFO, RECOMENDADA, CRÍTICA
             "urgency_label": "Verificação Pendente",
