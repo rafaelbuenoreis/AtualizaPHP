@@ -1,0 +1,22 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+
+# Backups e diretórios de execução
+backups_php_xampp/
+downloads/
+archived_logs/
+php_staging_*/
+php_previous_*/
+php_swap_*/
+
+# IDE e sistema
+.vscode/
+.idea/
+*.log
