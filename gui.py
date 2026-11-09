@@ -430,11 +430,11 @@ class XamppPhpUpgradeApp(ctk.CTk):
         self.chk_split_months.select()
         self.chk_split_months.pack(side="left", padx=(0, 15))
 
-        self.chk_truncate_orig = ctk.CTkCheckBox(row3, text="Remover conteúdo do arquivo Original (Truncar para 0B)")
+        self.chk_truncate_orig = ctk.CTkCheckBox(row3, text="Remover do original logs anteriores ao mês informado (preserva recentes)")
         self.chk_truncate_orig.select()
         self.chk_truncate_orig.pack(side="left", padx=(0, 15))
 
-        self.chk_compress_old = ctk.CTkCheckBox(row3, text="Compactar em .ZIP meses anteriores a 09/2026")
+        self.chk_compress_old = ctk.CTkCheckBox(row3, text="Compactar em .ZIP meses anteriores ao mês informado")
         self.chk_compress_old.select()
         self.chk_compress_old.pack(side="left")
 
@@ -691,10 +691,10 @@ class XamppPhpUpgradeApp(ctk.CTk):
         confirm_msg = (
             f"CONFIRMAÇÃO DE ROTAÇÃO E LIMPEZA DE LOGS\n\n"
             f"• Arquivos selecionados: {len(selected_paths)}\n"
-            f"• Ação: Separar linhas em arquivos mensais (YYYY-MM)\n"
-            f"• Esvaziar arquivos originais: {'SIM (0 bytes)' if self.chk_truncate_orig.get() else 'NÃO'}\n"
-            f"• Compactação em .ZIP: Meses ANTERIORES a {raw_threshold} ({ym_threshold})\n"
-            f"• Meses a partir de {raw_threshold}: Mantidos como .log descompactados\n\n"
+            f"• Mês informado de corte: {raw_threshold} ({ym_threshold})\n"
+            f"• Remoção no arquivo original: Remover apenas logs ANTERIORES a {raw_threshold}\n"
+            f"• Preservação no original: Todos os logs a partir de {raw_threshold} PERMANECEM no arquivo original\n"
+            f"• Compactação em .ZIP: Arquivos de meses < {raw_threshold} serão compactados\n\n"
             "Deseja iniciar a operação agora?"
         )
         if not messagebox.askyesno("Confirmar Limpeza de Logs", confirm_msg):
@@ -706,11 +706,11 @@ class XamppPhpUpgradeApp(ctk.CTk):
 
         threading.Thread(
             target=self._run_log_cleaning_thread,
-            args=(selected_paths, ym_threshold),
+            args=(selected_paths, ym_threshold, raw_threshold),
             daemon=True
         ).start()
 
-    def _run_log_cleaning_thread(self, selected_paths: List[str], ym_threshold: str):
+    def _run_log_cleaning_thread(self, selected_paths: List[str], ym_threshold: str, raw_threshold: str):
         try:
             base_dir = Path(self.entry_logs_dir.get().strip())
             cleaner = ApacheLogCleaner(base_dir, log_callback=self._log_cleaner)
@@ -721,6 +721,8 @@ class XamppPhpUpgradeApp(ctk.CTk):
 
             total_files = len(selected_paths)
             total_lines_all = 0
+            total_old_all = 0
+            total_recent_all = 0
             total_zips_all = 0
 
             for idx, p_str in enumerate(selected_paths, 1):
@@ -744,17 +746,20 @@ class XamppPhpUpgradeApp(ctk.CTk):
                 )
 
                 total_lines_all += res.get("lines_processed", 0)
+                total_old_all += res.get("lines_removed_old", 0)
+                total_recent_all += res.get("lines_kept_recent", 0)
                 total_zips_all += len(res.get("compressed_zips", []))
 
             self.after(0, lambda: self.progress_bar_logs.set(1.0))
             self.after(0, lambda: self.lbl_progress_logs.configure(text="Limpeza de logs finalizada com sucesso!"))
             self.after(0, lambda: messagebox.showinfo(
                 "Limpeza Concluída!",
-                f"Operação concluída com sucesso absoluto!\n\n"
-                f"• {total_files} arquivos de log processados\n"
-                f"• {total_lines_all:,} linhas separadas por mês\n"
-                f"• {total_zips_all} pacotes .ZIP gerados para meses anteriores a {ym_threshold}\n"
-                f"• Arquivos originais limpos (truncados para 0 bytes)\n\n"
+                f"Operação concluída com respeito ao mês informado ({raw_threshold})!\n\n"
+                f"• {total_files} arquivo(s) de log processado(s)\n"
+                f"• {total_lines_all:,} linhas analisadas no total\n"
+                f"• {total_old_all:,} linhas antigas (< {raw_threshold}) removidas do original e arquivadas\n"
+                f"• {total_recent_all:,} linhas recentes (>= {raw_threshold}) mantidas no arquivo original\n"
+                f"• {total_zips_all} pacote(s) .ZIP compactado(s)\n\n"
                 f"Arquivos arquivados salvos em:\n{out_dir}"
             ))
 
